@@ -54,11 +54,11 @@ class C45:
                         partitions.append(data.iloc[start_index:index])
                 partitions.append(data.iloc[start_index:])
                 e = self.gainRatio(partitions)
-                    if e >= maxGainRatio:
-                        splitted = partitions
-                        maxGainRatio = e
-                        bestAttribute = attribute
-                        best_threshold = threshold    
+                if e >= maxGainRatio:
+                    splitted = partitions
+                    maxGainRatio = e
+                    bestAttribute = attribute
+                    best_threshold = threshold    
             else:
                 threshold = []
                 prev = data[attribute][0]

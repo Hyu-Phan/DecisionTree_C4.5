@@ -11,10 +11,10 @@ class Node:
         self.gainRatio = gainRatio
 
 class C45:
-    def __init__(self):
+    def __init__(self, limitPartition=2):
         self.tree = None
         self.predict_label = None
-
+        self.limitPartition = limitPartition
 
     def fit(self, data, labels):
         self.tree = self.createNode(data, labels)
@@ -90,7 +90,7 @@ class C45:
 
                 lenThreshold = len(threshold)
                 partition = 2 
-                limitPartition = 3
+                limitPartition = self.limitPartition
 
                 while(partition <= limitPartition):
                     indexSplits = self.fillAllTheWaySplit(lenThreshold, partition)
@@ -98,9 +98,11 @@ class C45:
                         start_index = 0
                         partitions = []
                         labelsOfPartition = []
+                        best_threshold = []
                         for index in indexSplit:
                             partitions.append(data.iloc[start_index:threshold[index]])
                             labelsOfPartition.append(labels.iloc[start_index:threshold[index]])
+                            best_threshold.append(threshold_value[index])
                             start_index = threshold[index]
                         partitions.append(data.iloc[start_index:]) 
                         labelsOfPartition.append(labels.iloc[start_index:])
@@ -110,8 +112,7 @@ class C45:
                             splitted = partitions
                             label_splitted = labelsOfPartition
                             maxGainRatio = e
-                            bestAttribute = attribute
-                            best_threshold = threshold_value     
+                            bestAttribute = attribute   
                     partition += 1     
 
         return (bestAttribute, best_threshold, splitted ,label_splitted, maxGainRatio)
@@ -151,7 +152,8 @@ class C45:
         split_info = self.splitInfo(data, partitions)
         if split_info == 0:
             gain_ratio = gain
-        gain_ratio = gain / split_info
+        else:
+            gain_ratio = gain / split_info
         return gain_ratio
 
 
@@ -159,11 +161,7 @@ class C45:
         N = len(labels)
         impurity_before = self.entropy(labels)
         impurity_after = 0
-        # weights = np.array([len(partition) / N for partition in labelsOfPartition])
-        # for i in range(len(labelsOfPartition)):
-        #     impurity_after += weights[i] * self.entropy(labelsOfPartition[i][:, -1])
-        # partition = labelsOfPartition.get_group('Overcast')
-        # print(partition)
+
         for partition in labelsOfPartition:
             impurity_after += len(partition) / N * self.entropy(partition)
         total_gain = impurity_before - impurity_after
@@ -238,7 +236,7 @@ class C45:
 
     def predict(self, data):
         results = []
-        for row in data:
+        for id, row in data.iterrows():
             self.predict_label = None
             self.predictRow(self.tree, row)
             results.append(self.predict_label)
@@ -277,4 +275,3 @@ class C45:
                                 self.predict_label = child.label
                             else:
                                 self.predictRow(child, row)
-    

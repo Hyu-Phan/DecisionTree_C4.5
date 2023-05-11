@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import math
 class Node:
     def __init__(self, isLeaf, label, threshold, gainRatio=None):
         self.label = label
@@ -16,78 +16,98 @@ class C45:
         self.predict_label = None
         self.limitPartition = limitPartition
 
-    def fit(self, data, labels):
-        self.tree = self.createNode(data, labels)
+    def fit(self, data , labels):
+        self.data = data
+        self.data['label'] = labels
+        self.columns = list(self.data.columns)
+        self.data = self.data.values
+        self.tree = self.createNode(self.data, self.columns[:-1])
         
     
-    def createNode(self, data, labels):
-        allSameClass = self.checkAllSameClass(labels)
+    def createNode(self, data, columns):
+        allSameClass = self.checkAllSameClass(data[:,-1])
 
-        if len(data) == 0:
-            return Node(True, None, None)
+        # if len(data) == 0:
+        #     return Node(True, None, None)
         
         if allSameClass is not None:
             return Node(True, allSameClass, None)
         
-        elif len(data) == 0:
-            majorLabel = self.majorityLabel(labels)
+        elif columns is None or len(columns) == 1:
+            majorLabel = self.majorityLabel(data[:, -1])
             return Node(True, majorLabel, None)
         
         else :
-            bestAttribute, bestThreshold, bestPartitions, labelsOfPartition, gainRatio = self.findBestAttribute(data, labels)
-            
-            node = Node(False, bestAttribute, bestThreshold, gainRatio)
+            bestAttribute, bestThreshold, bestPartitions, gainRatio = self.findBestAttribute(data, columns)
 
+            node = Node(False, bestAttribute, bestThreshold, gainRatio)
+            index = columns.index(bestAttribute)
             if bestThreshold is None:
                 for partition in bestPartitions:
-                    node.category.append(partition.iloc[0][bestAttribute])
+                    node.category.append(partition[0][index])
             
-            node.children = [self.createNode(partition.drop([bestAttribute], axis=1), labels) for partition, labels in zip(bestPartitions, labelsOfPartition)]
+            columns.remove(bestAttribute)
+            
+            node.children = [self.createNode(np.delete(partition,index,1), columns) for partition in bestPartitions]
             return node
 
-    def findBestAttribute(self, data, labels):
+    def findBestAttribute(self, data, columns):
         splitted = []
         maxGainRatio = -1*float('inf')
         bestAttribute = -1
         threshold = None
         label_splitted = []
-        best_threshold = None
+        bestThreshold = None
 
-        for attribute in data.columns:
-            data = data.sort_values(attribute)
-            labels = labels[data.index]
-            if self.isAttrDiscrete(data[attribute]):
-                partitions = []
-                labelsOfPartition = []
+        for attribute in columns:
+            # labels = labels[data.index]
+            index_of_attribute = columns.index(attribute)
+            
+            if self.isAttrDiscrete(data[:, index_of_attribute]):
+                unique_values = np.unique(data[:, index_of_attribute])
+                partitions = [[] for _ in range(len(unique_values))]
 
-                start_index = 0
-                for index in range(len(data) - 1):
-                    if data.iloc[index][attribute] != data.iloc[index + 1][attribute]:
-                        partitions.append(data.iloc[start_index:index+1])
-                        labelsOfPartition.append(labels.iloc[start_index:index+1])
-                        start_index = index+1
-                partitions.append(data.iloc[start_index:])
-                labelsOfPartition.append(labels.iloc[start_index:])
-                # partitions = data.groupby(attribute)
-                # labelsOfPartition = labels.groupby(data[attribute])
-                # print(labelsOfPartition.get_group('Overcast'))
-
-                e = self.gainRatio(labels, labelsOfPartition)
-                if e >= maxGainRatio:
+                for row in data:
+                    partitions[unique_values.index(row[index_of_attribute])].append(row)
+                
+                gr = self.gainRatio(data, partitions)
+                if gr >= maxGainRatio:
                     splitted = partitions
-                    label_splitted = labelsOfPartition
-                    maxGainRatio = e
+                    maxGainRatio = gr
                     bestAttribute = attribute
-                    best_threshold = None    
+                    best_threshold = None 
             
             else:     
+                data = data[data[:, index_of_attribute].argsort(kind='stable')]
                 threshold = []
                 threshold_value=[]
                 for i in range(len(data) - 1):
-                    if data.iloc[i][attribute] != data.iloc[i + 1][attribute]:
-                        threshold_value.append((data.iloc[i][attribute] + data.iloc[i+1][attribute]) / 2)
+                    # if data[i][-1] != data[i+1][-1]:
+                    #     threshold_value.append((data[i][index_of_attribute] + data[i+1][index_of_attribute]) / 2)
+                        
+                    #     less = []
+                    #     greater = []
+                    #     for row in data:
+                    #         if row[index_of_attribute] <= threshold_value[-1]:
+                    #             less.append(row)
+                    #         else:
+                    #             greater.append(row)
+                    #     if len(less) != 0:
+                    #         less = np.vstack(less)
+                    #     if len(greater) != 0:
+                    #         greater = np.vstack(greater)
+                    #     e = self.gainRatio(data, [less, greater])
+                    #     print(attribute,threshold_value[-1], e)
+                    #     if e >= maxGainRatio:
+                    #         splitted = [less, greater]
+                    #         maxGainRatio = e
+                    #         bestAttribute = attribute
+                    #         best_threshold = [threshold_value[-1]]
+                    
+                    if data[i][index_of_attribute] != data[i+1][index_of_attribute]:
                         threshold.append(i+1)
-
+                        threshold_value.append((data[i][index_of_attribute] + data[i+1][index_of_attribute]) / 2)
+                        
                 lenThreshold = len(threshold)
                 partition = 2 
                 limitPartition = self.limitPartition
@@ -97,25 +117,23 @@ class C45:
                     for indexSplit in indexSplits:
                         start_index = 0
                         partitions = []
-                        labelsOfPartition = []
                         best_threshold = []
                         for index in indexSplit:
-                            partitions.append(data.iloc[start_index:threshold[index]])
-                            labelsOfPartition.append(labels.iloc[start_index:threshold[index]])
+                            partitions.append(data[start_index:threshold[index]])
                             best_threshold.append(threshold_value[index])
                             start_index = threshold[index]
-                        partitions.append(data.iloc[start_index:]) 
-                        labelsOfPartition.append(labels.iloc[start_index:])
+                        partitions.append(data[start_index:])
 
-                        e = self.gainRatio(labels, labelsOfPartition)
+
+                        e = self.gainRatio(data, partitions)
                         if e >= maxGainRatio:
                             splitted = partitions
-                            label_splitted = labelsOfPartition
                             maxGainRatio = e
-                            bestAttribute = attribute   
+                            bestAttribute = attribute  
+                            bestThreshold = best_threshold 
                     partition += 1     
 
-        return (bestAttribute, best_threshold, splitted ,label_splitted, maxGainRatio)
+        return (bestAttribute, bestThreshold, splitted, maxGainRatio)
                  
 
     def fillAllTheWaySplit(self, lenThreshold, partition):
@@ -144,7 +162,7 @@ class C45:
 
     def isAttrDiscrete(self, attrValues):
         type = attrValues.dtype
-        return (type!= 'int64' and type != 'float')
+        return (type!= 'int' and type != 'float')
 
 
     def gainRatio(self, data, partitions):
@@ -157,43 +175,62 @@ class C45:
         return gain_ratio
 
 
-    def gainSplit(self, labels, labelsOfPartition):
-        N = len(labels)
-        impurity_before = self.entropy(labels)
+    def gainSplit(self, data, partitions):
+        N = len(data)
+        impurity_before = self.entropy(data)
         impurity_after = 0
 
-        for partition in labelsOfPartition:
+        for partition in partitions:
             impurity_after += len(partition) / N * self.entropy(partition)
         total_gain = impurity_before - impurity_after
         return total_gain
 
     
-    def entropy(self, labels):
-        N = len(labels)
+    def entropy(self, data):
+        N = len(data)
         if N == 0:
             return 0
-        _, counts = np.unique(labels, return_counts=True)
+        _, counts = np.unique(data[:, -1], return_counts=True)
         proportions = counts / N
         proportions[proportions == 0] = 1
-        return -np.sum(proportions * np.log2(proportions))
+        entropy = 0
+        for pi in proportions:
+            entropy += pi * self.log(pi)
+        return entropy * -1
     
 
     def splitInfo(self, data, partitions):
         N = len(data)
-        weights = np.array([len(partition) / N for partition in partitions])
-        split_info = -np.sum(weights * np.log2(weights))
-        return split_info
+        weights = [len(partition) / N for partition in partitions]
+        split_info = 0
+        for weight in weights:
+            split_info += weight * self.log(weight)
+        return split_info * -1
 
+
+    def log(self, x):
+        if x==0:
+            return 0
+        else:
+            return math.log(x,2)
 
     def checkAllSameClass(self, labels):
+        if labels.dtype == 'float':
+            col = labels.astype(int)
+            if np.isclose(col, labels).all():
+                labels = col
         if len(np.unique(labels)) == 1:
-            return labels.iloc[0]
+            return labels[0]
         return None
     
 
     def majorityLabel(self, labels):
-        _, counts = np.unique(labels[:, -1], return_counts=True)
-        return np.take(labels[:, -1], np.argmax(counts))
+        if labels.dtype == 'float':
+            col = labels.astype(int)
+            if np.isclose(col, labels).all():
+                labels = col
+        counts = np.bincount(labels)
+        return np.argmax(counts)
 
 
     def printTree(self):
@@ -228,7 +265,7 @@ class C45:
 
                     else:
                         if child.isLeaf:
-                            print(space + "{} < {} <= {} : {}".format(node.threshold[index - 1], node.label, node.threshold[index] , child.label))
+                            print(space + "{} > {} : {}".format(node.label, node.threshold[index - 1] , child.label))
                         else:
                             print(space + "{} < {} <= {} :".format(node.threshold[index - 1], node.label, node.threshold[index]))
                             self.printNode(child, space + "     ")

@@ -53,9 +53,9 @@ class C45:
             remainingColumns.remove(bestAttribute)
 
             for partition in bestPartitions:
-                node.children.append(self.createNode(np.delete(partition,index,1), remainingColumns))
-            # node.children = [self.createNode(np.delete(partition,index,1), columns) for partition in bestPartitions]
-            return node
+                node.children.append(self.createNode(np.delete(partition, index, 1), remainingColumns))
+                # node.children.append(self.createNode(partition, columns))
+        return node
 
     def findBestAttribute(self, data, columns):
         splitted = []
@@ -95,7 +95,7 @@ class C45:
                     if data[i][index_of_attribute] != data[i+1][index_of_attribute]:
 
                         # Nếu cả 2 giá trị đều có số nhãn giống nhau
-                        if sameLabelPrevious is not None or sameLabelCurrent is not None and sameLabelPrevious == sameLabelCurrent:
+                        if sameLabelPrevious is not None and sameLabelCurrent is not None and sameLabelPrevious == sameLabelCurrent:
                             threshold.pop()
                             threshold_value.pop()
 
@@ -107,6 +107,10 @@ class C45:
 
                     elif data[i][-1] != data[i+1][-1]:
                         sameLabelCurrent = None
+
+                if sameLabelPrevious is not None and sameLabelCurrent is not None and sameLabelPrevious == sameLabelCurrent:
+                    threshold.pop()
+                    threshold_value.pop()
 
                 lenThreshold = len(threshold)
                 partition = 2 
@@ -253,7 +257,7 @@ class C45:
                     if child.isLeaf:
                         print(space + "{} = {} : {}".format(node.label, node.category[index] , child.label))
                     else:
-                        print(space + "{} = {} :".format(node.label, node.category[index]))
+                        print(space + "{} = {}, gr = {} :".format(node.label, node.category[index] , round(node.gainRatio, 3)) )
                         self.printNode(child, space + "     ")
             else:
                 for index, child in enumerate(node.children):
@@ -261,21 +265,21 @@ class C45:
                         if child.isLeaf:
                             print(space + "{} <= {} : {}".format(node.label, node.threshold[index] , child.label))
                         else:
-                            print(space + "{} <= {} :".format(node.label, node.threshold[index]))
+                            print(space + "{} <= {}, gr = {} :".format(node.label, node.threshold[index] , round(node.gainRatio, 3)))
                             self.printNode(child, space + "     ")
 
                     elif index == len(node.children) - 1:
                         if child.isLeaf:
                             print(space + "{} > {} : {}".format(node.label, node.threshold[index - 1] , child.label))
                         else:
-                            print(space + "{} > {} :".format(node.label, node.threshold[index - 1]))
+                            print(space + "{} > {}, gr = {} :".format(node.label, node.threshold[index - 1] , round(node.gainRatio, 3)))
                             self.printNode(child, space + "     ")
 
                     else:
                         if child.isLeaf:
                             print(space + "{} > {} : {}".format(node.label, node.threshold[index - 1] , child.label))
                         else:
-                            print(space + "{} < {} <= {} :".format(node.threshold[index - 1], node.label, node.threshold[index]))
+                            print(space + "{} < {} <= {}, gr = {} :".format(node.threshold[index - 1], node.label, node.threshold[index] , round(node.gainRatio, 3)))
                             self.printNode(child, space + "     ")
 
 

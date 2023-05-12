@@ -36,7 +36,8 @@ class C45:
         elif columns is None or len(columns) == 1:
             majorLabel = self.majorityLabel(data[:, -1])
             return Node(True, majorLabel, None)
-        
+
+        #  Chọn thuộc tính tốt nhất để chia
         else :
             bestAttribute, bestThreshold, bestPartitions, gainRatio = self.findBestAttribute(data, columns)
 
@@ -56,7 +57,6 @@ class C45:
         maxGainRatio = -1*float('inf')
         bestAttribute = -1
         threshold = None
-        label_splitted = []
         bestThreshold = None
 
         for attribute in columns:
@@ -81,39 +81,35 @@ class C45:
                 data = data[data[:, index_of_attribute].argsort(kind='stable')]
                 threshold = []
                 threshold_value=[]
+                sameLabelPrevious = None
+                sameLabelCurrent = data[0][-1]
+
+                # Chọn số ngưỡng để chia
                 for i in range(len(data) - 1):
-                    # if data[i][-1] != data[i+1][-1]:
-                    #     threshold_value.append((data[i][index_of_attribute] + data[i+1][index_of_attribute]) / 2)
-                        
-                    #     less = []
-                    #     greater = []
-                    #     for row in data:
-                    #         if row[index_of_attribute] <= threshold_value[-1]:
-                    #             less.append(row)
-                    #         else:
-                    #             greater.append(row)
-                    #     if len(less) != 0:
-                    #         less = np.vstack(less)
-                    #     if len(greater) != 0:
-                    #         greater = np.vstack(greater)
-                    #     e = self.gainRatio(data, [less, greater])
-                    #     print(attribute,threshold_value[-1], e)
-                    #     if e >= maxGainRatio:
-                    #         splitted = [less, greater]
-                    #         maxGainRatio = e
-                    #         bestAttribute = attribute
-                    #         best_threshold = [threshold_value[-1]]
-                    
+                    #  Nếu 2 giá trị liền kề của thuộc tính khác nhau thì chia ngưỡng
                     if data[i][index_of_attribute] != data[i+1][index_of_attribute]:
+
+                        # Nếu cả 2 giá trị đều có số nhãn giống nhau
+                        if sameLabelPrevious is not None or sameLabelCurrent is not None and sameLabelPrevious == sameLabelCurrent:
+                            threshold.pop()
+                            threshold_value.pop()
+
+                        # Thêm vào giá trị ngưỡng 
                         threshold.append(i+1)
                         threshold_value.append((data[i][index_of_attribute] + data[i+1][index_of_attribute]) / 2)
-                        
+                        sameLabelPrevious = sameLabelCurrent
+                        sameLabelCurrent = data[i+1][-1]
+
+                    elif data[i][-1] != data[i+1][-1]:
+                        sameLabelCurrent = None
+
                 lenThreshold = len(threshold)
                 partition = 2 
                 limitPartition = self.limitPartition
 
-                while(partition <= limitPartition):
+                while(partition <= limitPartition and lenThreshold >= partition-1):
                     indexSplits = self.fillAllTheWaySplit(lenThreshold, partition)
+                    # Tìm được số cách chia
                     for indexSplit in indexSplits:
                         start_index = 0
                         partitions = []
@@ -291,6 +287,7 @@ class C45:
                         else:
                             self.predictRow(child, row)
             else:
+                # Dữ liệu liên tục
                 for index, child in enumerate(node.children):
                     if index == 0:
                         if row[node.label] <= node.threshold[index]:

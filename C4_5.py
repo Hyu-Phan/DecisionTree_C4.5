@@ -41,15 +41,20 @@ class C45:
         else :
             bestAttribute, bestThreshold, bestPartitions, gainRatio = self.findBestAttribute(data, columns)
 
+            if len(bestPartitions) == 1:
+                return Node(True, self.majorityLabel(data[:, -1]), None)
+            
             node = Node(False, bestAttribute, bestThreshold, gainRatio)
             index = columns.index(bestAttribute)
             if bestThreshold is None:
                 for partition in bestPartitions:
                     node.category.append(partition[0][index])
-            
-            columns.remove(bestAttribute)
-            
-            node.children = [self.createNode(np.delete(partition,index,1), columns) for partition in bestPartitions]
+            remainingColumns = columns[:]
+            remainingColumns.remove(bestAttribute)
+
+            for partition in bestPartitions:
+                node.children.append(self.createNode(np.delete(partition,index,1), remainingColumns))
+            # node.children = [self.createNode(np.delete(partition,index,1), columns) for partition in bestPartitions]
             return node
 
     def findBestAttribute(self, data, columns):
@@ -106,6 +111,13 @@ class C45:
                 lenThreshold = len(threshold)
                 partition = 2 
                 limitPartition = self.limitPartition
+                if lenThreshold == 0:
+                    e = self.gainRatio(data, [data])
+                    if e >= maxGainRatio:
+                        splitted = [data]
+                        maxGainRatio = e
+                        bestAttribute = attribute
+                        bestThreshold = None
 
                 while(partition <= limitPartition and lenThreshold >= partition-1):
                     indexSplits = self.fillAllTheWaySplit(lenThreshold, partition)
